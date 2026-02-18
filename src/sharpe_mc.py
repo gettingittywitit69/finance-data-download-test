@@ -11,11 +11,11 @@ import numpy as np
 from numpy.random import Generator, SeedSequence, default_rng
 from scipy.stats import kurtosis, norm, skew
 
-from arch.univariate import ConstantMean, GARCH, StudentsT
+from arch.univariate import ARX, ConstantMean, ConstantVariance, GARCH, Normal, StudentsT
 
 DGP_LIST: tuple[str, ...] = ("iid_normal", "iid_t5", "ar1_t5", "garch11_t5")
 N_GRID: tuple[int, ...] = (120, 240, 1200)
-S_TRUE_GRID: tuple[float, ...] = (0.0, 0.5)
+S_TRUE_GRID: tuple[float, ...] = (0.0, 0.5,1)
 DEFAULT_REPS = 20000
 DEFAULT_SIGMA = 0.04
 DEFAULT_DF = 5
@@ -167,6 +167,52 @@ def simulate_dgp(
     if series.shape[0] != n:
         raise RuntimeError("Incorrect series length")
     _ensure_finite(series, "simulated series")
+    return series
+
+
+def fit_candidate(train: np.ndarray, name: str):
+    train_arr = np.asarray(train, dtype=float)
+    if train_arr.ndim != 1:
+        raise ValueError("train must be a 1d array")
+    if train_arr.size < 10:
+        raise ValueError("train must have at least 10 observations")
+    _ensure_finite(train_arr, "train")
+
+    if name == "iid_normal":
+        model = ConstantMean(train_arr)
+        model.volatility = ConstantVariance()
+        model.distribution = Normal()
+    elif name == "iid_t":
+        model = ConstantMean(train_arr)
+        model.volatility = ConstantVariance()
+        model.distribution = StudentsT()
+    elif name == "garch11_t":
+        model = ConstantMean(train_arr)
+        model.volatility = GARCH(p=1, o=0, q=1)
+        model.distribution = StudentsT()
+    elif name == "ar1_garch11_t":
+        model = ARX(train_arr, lags=1)
+        model.volatility = GARCH(p=1, o=0, q=1)
+        model.distribution = StudentsT()
+    else:
+        raise ValueError(f"Unknown candidate model {name}")
+
+    res = model.fit(disp="off")
+    return model, res, np.asarray(res.params, dtype=float)
+
+
+def simulate_from_fit(
+    model,
+    params,
+    n: int,
+    burn: int = 500,
+    initial_value_vol: float | None = None,
+) -> np.ndarray:
+    sim = model.simulate(params, nobs=n, burn=burn, initial_value_vol=initial_value_vol)
+    series = np.asarray(sim["data"], dtype=float)
+    if series.shape[0] != n:
+        raise RuntimeError("Incorrect series length from fitted model simulate")
+    _ensure_finite(series, "simulate_from_fit")
     return series
 
 
@@ -575,6 +621,8 @@ __all__ = [
     "simulate_iid_t5",
     "simulate_ar1_t5",
     "simulate_garch11_t5",
+    "fit_candidate",
+    "simulate_from_fit",
     "sharpe_ratio",
     "se_naive",
     "se_hac",

@@ -8,7 +8,7 @@ from . import sharpe_mc
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Monte Carlo grid for Sharpe-ratio inference")
     parser.add_argument("--reps", type=int, default=sharpe_mc.DEFAULT_REPS, help="replications per cell")
-    parser.add_argument("--seed", type=int, default=42, help="global random seed")
+    parser.add_argument("--seed", type=int, default=0, help="global random seed")
     parser.add_argument("--out", type=str, default="results/summary.csv", help="output CSV path")
     parser.add_argument("--max-workers", type=int, default=None, help="process workers (default: cpu count)")
     parser.add_argument("--no-sanity", action="store_true", help="skip runtime sanity checks")

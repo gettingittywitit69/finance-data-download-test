@@ -68,3 +68,35 @@ def test_no_nan_summary():
     for row in rows:
         for key in keys:
             assert np.isfinite(row[key])
+
+
+def test_fit_candidate_garch11_t_sanity():
+    alpha_true = 0.05
+    beta_true = 0.90
+    sigma_true = 1.0
+    train = sharpe_mc.simulate_dgp(
+        "garch11_t5",
+        n=5000,
+        S_true=0.0,
+        sigma=sigma_true,
+        df=sharpe_mc.DEFAULT_DF,
+        alpha=alpha_true,
+        beta=beta_true,
+        burn=sharpe_mc.DEFAULT_BURN,
+        seed=123,
+    )
+
+    model, res, params = sharpe_mc.fit_candidate(train, "garch11_t")
+    alpha_beta_hat = float(res.params["alpha[1]"] + res.params["beta[1]"])
+    assert abs(alpha_beta_hat - (alpha_true + beta_true)) <= 0.05 + 1e-6
+    assert np.isfinite(float(res.params["nu"]))
+
+    sim = sharpe_mc.simulate_from_fit(
+        model,
+        params,
+        n=250,
+        burn=sharpe_mc.DEFAULT_BURN,
+        initial_value_vol=sigma_true**2,
+    )
+    assert len(sim) == 250
+    assert np.isfinite(sim).all()
